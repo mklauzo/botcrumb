@@ -15,11 +15,11 @@ export default function StatsTable() {
           <thead>
             <tr className="text-gray-500 border-b border-gray-800">
               <th className="text-left px-2 py-1">Name</th>
-              <th className="text-right px-1">E</th>
-              <th className="text-right px-1">W</th>
-              <th className="text-right px-1">A</th>
-              <th className="text-right px-1">D</th>
-              <th className="text-right px-1">Q</th>
+              <th className="text-right px-1 cursor-help" title="Energy">E</th>
+              <th className="text-right px-1 cursor-help" title="Workers">W</th>
+              <th className="text-right px-1 cursor-help" title="Attackers">A</th>
+              <th className="text-right px-1 cursor-help" title="Defenders">D</th>
+              <th className="text-right px-1 cursor-help" title="Queen">Q</th>
             </tr>
           </thead>
           <tbody>
