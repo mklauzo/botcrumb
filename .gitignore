@@ -1,6 +1,0 @@
-.env
-botcrumb-prompt.md
-.gitignore
-.claude
-node_modules/
-.next/
