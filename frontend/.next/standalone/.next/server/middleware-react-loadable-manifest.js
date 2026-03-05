@@ -1,1 +1,0 @@
-self.__REACT_LOADABLE_MANIFEST='{"app/page.tsx -> @/components/GameView":{"id":4636,"files":["static/chunks/b536a0f1.ff35bebca6d53e0b.js","static/chunks/691.6e53960efb7b7bb6.js","static/chunks/636.bb6034664ff5e7a8.js"]}}';
