@@ -20,7 +20,7 @@ Po uruchomieniu:
 
 ## Pierwsze uruchomienie gry
 
-1. Wejdź na http://localhost:3000
+1. Wejdź na http://localhost:3400
 2. Wybierz model LLM do generowania nazw plemion:
    - **Ollama (lokalny, bezpłatny)**: kliknij "↓ Pull" przy `llama3.2` i poczekaj na pobranie (~2 GB)
    - **OpenAI / Anthropic / Gemini**: wklej klucz API i wybierz model
