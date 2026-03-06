@@ -52,3 +52,4 @@ Szczegółowa instrukcja: [quick_start.md](quick_start.md)
 - **LLM** — Ollama (lokalnie) + OpenAI / Anthropic / Gemini
 - **Komunikacja** — WebSocket (diff co 200ms)
 - **Proxy** — nginx
+<img width="1625" height="861" alt="botcru" src="https://github.com/user-attachments/assets/58da5209-2435-4774-8cc1-7352f6222a6a" />
