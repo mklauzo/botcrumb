@@ -139,7 +139,7 @@ export default function GameCanvas() {
 
     function _handleMouseMove(e: MouseEvent) {
       const units = renderersRef.current.units
-      if (!units) return
+      if (!units || !canvas) return
       const queenMesh = units.getQueenMesh()
       if (!queenMesh) return
       const rect = canvas.getBoundingClientRect()
