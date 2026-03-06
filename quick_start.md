@@ -58,6 +58,20 @@ docker compose down
 
 Dane Ollama (pobrane modele) są przechowywane w wolumenie `ollama_data` i przeżywają restart.
 
+## Instalacja bez Nginx Proxy Manager (NPM)
+
+Domyślna konfiguracja zakłada obecność sieci `npm_default` tworzonej przez Nginx Proxy Manager.
+Jeśli NPM nie jest zainstalowany, przed uruchomieniem utwórz sieć ręcznie:
+
+```bash
+docker network create npm_default
+docker compose up --build -d
+```
+
+Alternatywnie możesz usunąć zależność z `docker-compose.yml`:
+1. W sekcji `nginx.networks` usuń linię `- npm_default`
+2. Na dole pliku usuń całą sekcję `npm_default:\n    external: true`
+
 ## Zmienne środowiskowe (.env)
 
 Skopiuj `.env.example` do `.env` i uzupełnij klucze API jeśli chcesz używać modeli chmurowych:
