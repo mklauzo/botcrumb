@@ -59,15 +59,15 @@ class GameEngine:
             # Initial units — temporarily give enough energy to cover spawn costs
             from app.game.constants import UNIT_STATS as _US
             spawn_cost = (10 * _US["worker"]["cost"] + 2 * _US["attacker"]["cost"]
-                          + 2 * _US["defender"]["cost"])
+                          + 1 * _US["defender"]["cost"])
             tribe.energy = spawn_cost
             for _ in range(10):
                 self._spawn_unit(tribe, "worker")
             for _ in range(2):
                 self._spawn_unit(tribe, "attacker")
-            for _ in range(2):
+            for _ in range(1):
                 self._spawn_unit(tribe, "defender")
-            tribe.energy = 10  # reset to normal starting energy
+            tribe.energy = 0  # reset to zero so queen AI doesn't immediately spawn units
 
     def _next_unit_id(self) -> int:
         uid = self.state.next_unit_id
