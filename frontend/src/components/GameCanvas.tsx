@@ -7,6 +7,7 @@ import { UnitRenderer } from '@/three/UnitRenderer'
 import { StoneRenderer } from '@/three/StoneRenderer'
 import { EnergyRenderer } from '@/three/EnergyRenderer'
 import { HitFlash } from '@/three/HitFlash'
+import { QueenVisionRenderer } from '@/three/QueenVisionRenderer'
 import {
   GameSocket,
   type DiffMessage,
@@ -35,6 +36,7 @@ export default function GameCanvas() {
     stones?: StoneRenderer
     energy?: EnergyRenderer
     flash?: HitFlash
+    queenVision?: QueenVisionRenderer
   }>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -143,6 +145,7 @@ export default function GameCanvas() {
       r.units = new UnitRenderer(s)
       r.stones = new StoneRenderer(s)
       r.energy = new EnergyRenderer(s)
+      r.queenVision = new QueenVisionRenderer(s)
 
       r.stones.setStones(msg.stones, msg.sphere_radius)
       r.energy.setEnergySources(msg.energy_sources ?? [])
@@ -150,11 +153,14 @@ export default function GameCanvas() {
       unitTypesRef.current.clear()
       for (const u of msg.units) unitTypesRef.current.set(u.id, u.type)
       r.units.loadSnapshot(msg.units)
+      r.queenVision.setFromSnapshot(msg.units)
     }
 
     function _handleDiff(msg: DiffMessage) {
       const r = renderersRef.current
       if (!r.units) return
+      // queenVision must run before units.applyDiff (which deletes from unitTypesRef)
+      r.queenVision?.applyDiff(msg.spawned ?? [], msg.died ?? [], unitTypesRef.current)
       r.units.applyDiff(msg.moved ?? [], msg.spawned ?? [], msg.died ?? [], unitTypesRef.current)
       for (const es of msg.energy_spawned ?? []) r.energy?.addSource(es.id, es.pos)
       for (const id of msg.energy_depleted ?? []) r.energy?.removeSource(id)
@@ -175,6 +181,7 @@ export default function GameCanvas() {
       renderers.sphere?.dispose()
       renderers.stones?.dispose()
       renderers.energy?.dispose()
+      renderers.queenVision?.dispose()
     }
   }, []) // eslint-disable-line
 

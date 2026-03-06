@@ -5,8 +5,8 @@ from typing import Optional
 
 from app.game.constants import (
     DEFENSE_RADIUS, DEFENDER_LEASH, ATTACK_RANGE, ATTACK_INTERVAL_TICKS,
-    MAX_UNITS, UNIT_STATS, ATTACKER_VS_QUEEN_BONUS, DEFENDER_ZONE_BONUS,
-    WORKER_ENERGY_VISION,
+    MAX_UNITS, MAX_DEFENDERS, UNIT_STATS, ATTACKER_VS_QUEEN_BONUS, DEFENDER_ZONE_BONUS,
+    WORKER_ENERGY_VISION, DEFENDER_PATROL_MIN, DEFENDER_PATROL_MAX,
 )
 from app.game.types import Unit, Tribe, GameState
 from app.game.sphere_math import great_circle_dist, move_on_sphere, random_sphere_point, los_blocked
@@ -36,7 +36,7 @@ def queen_ai_decision(tribe: Tribe, state: GameState, rng: np.random.Generator) 
         great_circle_dist(u.pos, queen.pos) <= DEFENSE_RADIUS * 3
     ]
 
-    if enemies_in_zone or len(defenders) < min_defenders:
+    if (enemies_in_zone or len(defenders) < min_defenders) and len(defenders) < MAX_DEFENDERS:
         if tribe.energy >= UNIT_STATS["defender"]["cost"]:
             return "defender"
     elif len(workers) < 2 or tribe.energy < 5:
@@ -63,14 +63,22 @@ def unit_behavior(unit: Unit, state: GameState,
     elif unit.unit_type == "attacker":
         _attacker_behavior(unit, state, tribe)
     elif unit.unit_type == "defender":
-        _defender_behavior(unit, state, tribe)
+        _defender_behavior(unit, state, tribe, rng)
 
 
 def _queen_behavior(unit: Unit, state: GameState) -> None:
-    """Queen attacks nearest enemy in vision."""
+    """Queen attacks nearest enemy in vision; shares spotted energy sources with tribe."""
     unit.target_pos = None
     nearest_enemy = _nearest_enemy_in_vision(unit, state)
     unit.target_unit_id = nearest_enemy.id if nearest_enemy else None
+
+    # Share energy sources visible to queen with all tribe workers
+    tribe = state.tribes.get(unit.tribe_id)
+    if tribe:
+        vision = UNIT_STATS["queen"]["vision"]
+        for es_id, es in state.energy_sources.items():
+            if great_circle_dist(unit.pos, es.pos) <= vision:
+                tribe.known_energy_sources.add(es_id)
 
 
 def _worker_behavior(unit: Unit, state: GameState,
@@ -154,31 +162,50 @@ def _attacker_behavior(unit: Unit, state: GameState, tribe: Tribe) -> None:
             unit.target_pos = closest.pos.copy()
 
 
-def _defender_behavior(unit: Unit, state: GameState, tribe: Tribe) -> None:
-    """Defender protects queen, attacks in defense zone."""
+def _defender_behavior(unit: Unit, state: GameState, tribe: Tribe,
+                        rng: np.random.Generator) -> None:
+    """Defender patrols around queen at radius 30-60, attacks nearby enemies."""
     queen = state.units.get(tribe.queen_id) if tribe.queen_id else None
     if queen is None:
         return
 
     queen_dist = great_circle_dist(unit.pos, queen.pos)
 
-    # Attack nearest enemy
+    # Attack nearest enemy; chase within leash distance from queen
     nearest = _nearest_enemy_in_vision(unit, state)
     if nearest:
         unit.target_unit_id = nearest.id
         enemy_dist = great_circle_dist(unit.pos, nearest.pos)
-        # Only chase within leash range from queen
         if queen_dist < DEFENDER_LEASH or enemy_dist < ATTACK_RANGE * 2:
             unit.target_pos = nearest.pos.copy()
             return
 
     unit.target_unit_id = None
-    # Return to queen if too far
-    if queen_dist > DEFENDER_LEASH * 0.7:
-        unit.target_pos = queen.pos.copy()
-    elif unit.target_pos is None:
-        # Orbit around queen
-        unit.target_pos = queen.pos.copy()
+
+    # Patrol radius is stable per unit (spread defenders across 30-60 range)
+    patrol_radius = DEFENDER_PATROL_MIN + (unit.id % 31) * (
+        (DEFENDER_PATROL_MAX - DEFENDER_PATROL_MIN) / 30.0
+    )
+
+    # Pick new patrol point when reached target or too far from queen
+    if unit.target_pos is None or _at_target(unit) or queen_dist > DEFENDER_LEASH:
+        unit.target_pos = _random_patrol_point(queen.pos, patrol_radius, rng)
+
+
+def _random_patrol_point(queen_pos: np.ndarray, radius: float,
+                          rng: np.random.Generator) -> np.ndarray:
+    """Return a random point on the sphere at geodesic distance `radius` from queen."""
+    from app.game.sphere_math import normalize
+    from app.game.constants import SPHERE_RADIUS as R
+    q = normalize(queen_pos)
+    # Random tangent vector perpendicular to q
+    arb = rng.standard_normal(3)
+    arb -= np.dot(arb, q) * q
+    t = normalize(arb)
+    b = np.cross(q, t)
+    angle = rng.uniform(0, 2 * math.pi)
+    d = math.cos(angle) * t + math.sin(angle) * b
+    return R * (math.cos(radius / R) * q + math.sin(radius / R) * d)
 
 
 def _nearest_enemy_in_vision(unit: Unit, state: GameState) -> Optional[Unit]:
@@ -232,9 +259,11 @@ def resolve_combat(attacker: Unit, target: Unit, state: GameState,
     if tick - attacker.last_attack_tick < ATTACK_INTERVAL_TICKS:
         return False
     dist = great_circle_dist(attacker.pos, target.pos)
-    if dist > ATTACK_RANGE:
-        return False
     if los_blocked(attacker.pos, target.pos, state.stones):
+        return False
+
+    atk_range = UNIT_STATS[attacker.unit_type]["attack_range"]
+    if dist > atk_range:
         return False
 
     accuracy = UNIT_STATS[attacker.unit_type]["accuracy"]

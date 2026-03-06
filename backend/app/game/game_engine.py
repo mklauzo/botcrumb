@@ -58,12 +58,12 @@ class GameEngine:
 
             # Initial units — temporarily give enough energy to cover spawn costs
             from app.game.constants import UNIT_STATS as _US
-            spawn_cost = (10 * _US["worker"]["cost"] + 2 * _US["attacker"]["cost"]
+            spawn_cost = (10 * _US["worker"]["cost"] + 3 * _US["attacker"]["cost"]
                           + 1 * _US["defender"]["cost"])
             tribe.energy = spawn_cost
             for _ in range(10):
                 self._spawn_unit(tribe, "worker")
-            for _ in range(2):
+            for _ in range(3):
                 self._spawn_unit(tribe, "attacker")
             for _ in range(1):
                 self._spawn_unit(tribe, "defender")
@@ -213,20 +213,21 @@ class GameEngine:
                 continue
 
             # Find targets in attack range
+            atk_range = UNIT_STATS[attacker.unit_type]["attack_range"]
             target_unit = None
             if attacker.target_unit_id and attacker.target_unit_id in self.state.units:
                 candidate = self.state.units[attacker.target_unit_id]
                 if (candidate.tribe_id != attacker.tribe_id and
-                        great_circle_dist(attacker.pos, candidate.pos) <= ATTACK_RANGE):
+                        great_circle_dist(attacker.pos, candidate.pos) <= atk_range):
                     target_unit = candidate
             else:
                 # Find nearest enemy in attack range
-                best_dist = ATTACK_RANGE + 1
+                best_dist = atk_range + 1
                 for other in self.state.units.values():
                     if other.tribe_id == attacker.tribe_id:
                         continue
                     d = great_circle_dist(attacker.pos, other.pos)
-                    if d <= ATTACK_RANGE and d < best_dist:
+                    if d <= atk_range and d < best_dist:
                         best_dist = d
                         target_unit = other
 
