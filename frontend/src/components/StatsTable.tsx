@@ -28,7 +28,13 @@ export default function StatsTable() {
                 key={t.id}
                 className={`border-b border-gray-900 ${!t.alive ? 'opacity-30' : ''}`}
               >
-                <td className="px-2 py-0.5 font-mono" style={{ color: t.color }}>
+                <td
+                  className="px-2 py-0.5 font-mono"
+                  style={{ color: t.color }}
+                  title={!t.alive
+                    ? `Szczyt jednostek:\nWorkers: ${t.maxUnits.worker}\nAttackers: ${t.maxUnits.attacker}\nDefenders: ${t.maxUnits.defender}\nQueens: ${t.maxUnits.queen}`
+                    : undefined}
+                >
                   {t.alive ? '' : '✗ '}{t.name}
                 </td>
                 <td className="text-right px-1 text-yellow-400">{t.energy}</td>

@@ -8,6 +8,7 @@ export interface TribeStats {
   color: string
   energy: number
   units: { worker: number; attacker: number; defender: number; queen: number }
+  maxUnits: { worker: number; attacker: number; defender: number; queen: number }
   alive: boolean
 }
 
@@ -85,6 +86,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         ...t,
         energy: 0,
         units: { worker: 0, attacker: 0, defender: 0, queen: 0 },
+        maxUnits: { worker: 0, attacker: 0, defender: 0, queen: 0 },
         alive: true,
       })),
     }),
@@ -94,14 +96,21 @@ export const useGameStore = create<GameStore>((set, get) => ({
       tribes: state.tribes.map(t => {
         const s = stats.find(x => x.id === t.id)
         if (!s) return t
+        const newUnits = {
+          worker: s.units.worker ?? 0,
+          attacker: s.units.attacker ?? 0,
+          defender: s.units.defender ?? 0,
+          queen: s.units.queen ?? 0,
+        }
         return {
           ...t,
           energy: s.energy,
-          units: {
-            worker: s.units.worker ?? 0,
-            attacker: s.units.attacker ?? 0,
-            defender: s.units.defender ?? 0,
-            queen: s.units.queen ?? 0,
+          units: newUnits,
+          maxUnits: {
+            worker: Math.max(t.maxUnits.worker, newUnits.worker),
+            attacker: Math.max(t.maxUnits.attacker, newUnits.attacker),
+            defender: Math.max(t.maxUnits.defender, newUnits.defender),
+            queen: Math.max(t.maxUnits.queen, newUnits.queen),
           },
           alive: s.alive,
         }
