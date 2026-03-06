@@ -16,6 +16,12 @@ async def game_status() -> dict:
     return get_game_status()
 
 
+@router.get("/history")
+async def game_history() -> dict:
+    from app.api.game_ws import get_game_history
+    return {"games": get_game_history()}
+
+
 class StartRequest(BaseModel):
     num_tribes: int = 4
     llm_model: str = "ollama:llama3.2"

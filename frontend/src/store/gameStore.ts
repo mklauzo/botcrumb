@@ -33,6 +33,7 @@ interface GameStore {
   winner: { id: number; name: string } | null
   eventCounter: number
   pendingStart: boolean
+  gameStartTime: number | null
 
   setGamePhase: (phase: GamePhase) => void
   setSelectedModel: (model: string) => void
@@ -67,6 +68,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   winner: null,
   eventCounter: 0,
   pendingStart: false,
+  gameStartTime: null,
 
   setGamePhase: (phase) => set({ gamePhase: phase }),
   setSelectedModel: (model) => set({ selectedModel: model }),
@@ -82,6 +84,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   setTribes: (tribes) =>
     set({
+      gameStartTime: Date.now(),
       tribes: tribes.map(t => ({
         ...t,
         energy: 0,
@@ -147,5 +150,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
       winner: null,
       eventCounter: 0,
       pendingStart: false,
+      gameStartTime: null,
     }),
 }))

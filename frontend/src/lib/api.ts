@@ -10,6 +10,26 @@ export async function apiFetch<T>(path: string, options?: RequestInit): Promise<
   return res.json()
 }
 
+export interface FinishedGameTribe {
+  id: number
+  name: string
+  color: string
+  alive: boolean
+  final_energy: number
+  final_units: { worker: number; attacker: number; defender: number; queen: number }
+}
+
+export interface FinishedGame {
+  winner: { id: number; name: string }
+  ended_at: string
+  duration_ticks: number
+  tribes: FinishedGameTribe[]
+}
+
+export const historyApi = {
+  get: () => apiFetch<{ games: FinishedGame[] }>('/api/history'),
+}
+
 export const ollamaApi = {
   listModels: () =>
     apiFetch<{ models: string[] }>('/api/models/ollama'),

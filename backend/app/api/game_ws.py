@@ -2,6 +2,7 @@
 import asyncio
 import json
 import logging
+from datetime import datetime
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from app.game.game_engine import GameEngine
@@ -21,6 +22,10 @@ _stored_tribe_stats: list[dict] = []
 _game_result: dict | None = None
 
 MAX_STORED_EVENTS = 2000
+
+# Finished game history (survives between games)
+_game_history: list[dict] = []
+MAX_HISTORY_ENTRIES = 20
 
 
 class ConnectionManager:
@@ -47,6 +52,35 @@ class ConnectionManager:
 
 
 manager = ConnectionManager()
+
+
+def get_game_history() -> list[dict]:
+    return list(_game_history)
+
+
+def _save_to_history(engine, result: dict, tribe_stats: list[dict]) -> None:
+    global _game_history
+    stats_by_id = {s["id"]: s for s in tribe_stats}
+    tribes = []
+    for t in engine.state.tribes.values():
+        s = stats_by_id.get(t.id, {})
+        tribes.append({
+            "id": t.id,
+            "name": t.name,
+            "color": t.color,
+            "alive": t.alive,
+            "final_energy": s.get("energy", 0),
+            "final_units": s.get("units", {"worker": 0, "attacker": 0, "defender": 0, "queen": 0}),
+        })
+    entry = {
+        "winner": result,
+        "ended_at": datetime.now().isoformat(timespec="seconds"),
+        "duration_ticks": engine.state.tick,
+        "tribes": tribes,
+    }
+    _game_history.append(entry)
+    if len(_game_history) > MAX_HISTORY_ENTRIES:
+        _game_history = _game_history[-MAX_HISTORY_ENTRIES:]
 
 
 def get_game_status() -> dict:
@@ -180,6 +214,7 @@ async def _game_loop() -> None:
 
             if not _engine.state.running and _engine.state.winner:
                 _game_result = _engine.state.winner
+                _save_to_history(_engine, _game_result, _stored_tribe_stats)
                 await manager.broadcast(encode_game_over(_game_result))
                 break
 

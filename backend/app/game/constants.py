@@ -11,7 +11,7 @@ ATTACK_RANGE = 3.0          # geodesic distance to trigger attack
 
 ENERGY_SPAWN_INTERVAL = 300  # ticks
 ENERGY_SPAWN_COUNT = (1, 5)  # min/max energy sources per spawn
-ENERGY_AMOUNT = (10, 100)    # min/max energy per source
+ENERGY_AMOUNT = (1, 50)      # min/max energy per source
 
 AI_DECISION_INTERVAL = 5    # queen AI runs every N ticks
 
@@ -19,9 +19,9 @@ WORKER_ENERGY_VISION = 50.0  # radius within which workers detect energy sources
 
 # Unit stats
 UNIT_STATS = {
-    "worker":   {"speed": 2.0, "vision": 8.0, "hp": 1,  "cost": 1, "accuracy": 0.0},
-    "attacker": {"speed": 3.0, "vision": 5.0, "hp": 3,  "cost": 3, "accuracy": 0.70},
-    "defender": {"speed": 1.0, "vision": 3.0, "hp": 4,  "cost": 2, "accuracy": 0.50},
+    "worker":   {"speed": 6.0, "vision": 16.0, "hp": 1,  "cost": 1, "accuracy": 0.0},
+    "attacker": {"speed": 9.0, "vision": 5.0, "hp": 3,  "cost": 3, "accuracy": 0.70},
+    "defender": {"speed": 3.0, "vision": 3.0, "hp": 4,  "cost": 2, "accuracy": 0.50},
     "queen":    {"speed": 0.0, "vision": 5.0, "hp": 10, "cost": 0, "accuracy": 0.80},
 }
 
