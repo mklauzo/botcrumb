@@ -28,6 +28,8 @@ class Tribe:
     alive: bool = True
     # shared knowledge: set of known energy source ids
     known_energy_sources: set = field(default_factory=set)
+    # queen alert: position of enemy attacker spotted by queen (None if no threat)
+    alert_pos: Optional[np.ndarray] = None
 
 
 @dataclass

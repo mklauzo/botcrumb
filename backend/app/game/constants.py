@@ -23,7 +23,7 @@ WORKER_ENERGY_VISION = 50.0  # radius within which workers detect energy sources
 # Unit stats
 UNIT_STATS = {
     "worker":   {"speed": 6.0, "vision": 16.0, "hp": 1,  "cost": 1, "accuracy": 0.0,  "attack_range": 3.0},
-    "attacker": {"speed": 9.0, "vision": 5.0,  "hp": 3,  "cost": 3, "accuracy": 0.70, "attack_range": 3.0},
+    "attacker": {"speed": 9.0, "vision": 12.0, "hp": 3,  "cost": 3, "accuracy": 0.70, "attack_range": 3.0},
     "defender": {"speed": 3.0, "vision": 3.0,  "hp": 4,  "cost": 2, "accuracy": 0.50, "attack_range": 3.0},
     "queen":    {"speed": 0.0, "vision": 1500.0, "hp": 10, "cost": 0, "accuracy": 0.80, "attack_range": 5.0},
 }

@@ -24,25 +24,39 @@ def queen_ai_decision(tribe: Tribe, state: GameState, rng: np.random.Generator) 
     queen = state.units[tribe.queen_id]
     tribe_units = [u for u in state.units.values() if u.tribe_id == tribe.id]
     defenders = [u for u in tribe_units if u.unit_type == "defender"]
+    attackers = [u for u in tribe_units if u.unit_type == "attacker"]
     workers = [u for u in tribe_units if u.unit_type == "worker"]
 
     num_tribes_alive = sum(1 for t in state.tribes.values() if t.alive)
     min_defenders = max(math.ceil(num_tribes_alive * 1.5), math.ceil(len(tribe_units) * 0.30))
 
-    # Check for enemies in defense zone
-    enemies_in_zone = [
-        u for u in state.units.values()
-        if u.tribe_id != tribe.id and
+    under_attack = tribe.alert_pos is not None
+    enemies_in_zone = any(
+        u.tribe_id != tribe.id and
         great_circle_dist(u.pos, queen.pos) <= DEFENSE_RADIUS * 3
-    ]
+        for u in state.units.values()
+    )
 
-    if (enemies_in_zone or len(defenders) < min_defenders) and len(defenders) < MAX_DEFENDERS:
-        if tribe.energy >= UNIT_STATS["defender"]["cost"]:
-            return "defender"
-    elif len(workers) < 2 or tribe.energy < 5:
+    # 1. Priority: workers — keep at least 2, or if too poor to do anything else
+    if len(workers) < 2 or tribe.energy < UNIT_STATS["worker"]["cost"]:
         if tribe.energy >= UNIT_STATS["worker"]["cost"]:
             return "worker"
-    else:
+        return None
+
+    # 2. Defenders — when under attack or below minimum, up to MAX_DEFENDERS
+    need_defenders = (enemies_in_zone or under_attack or len(defenders) < min_defenders)
+    if need_defenders and len(defenders) < MAX_DEFENDERS:
+        if tribe.energy >= UNIT_STATS["defender"]["cost"]:
+            return "defender"
+
+    # 3. Attackers — only when not under attack, energy comfortable, ratio < 2:1 vs defenders
+    if not under_attack and tribe.energy >= 20:
+        if len(attackers) < len(defenders) * 2:
+            if tribe.energy >= UNIT_STATS["attacker"]["cost"]:
+                return "attacker"
+
+    # 4. Late game / rich: build attackers freely when defenses are solid
+    if not under_attack and tribe.energy >= 30 and len(defenders) >= min_defenders:
         if tribe.energy >= UNIT_STATS["attacker"]["cost"]:
             return "attacker"
 
@@ -73,12 +87,25 @@ def _queen_behavior(unit: Unit, state: GameState) -> None:
     unit.target_unit_id = nearest_enemy.id if nearest_enemy else None
 
     # Share energy sources visible to queen with all tribe workers
+    # Also alert defenders about enemy attackers in vision
     tribe = state.tribes.get(unit.tribe_id)
     if tribe:
         vision = UNIT_STATS["queen"]["vision"]
+        nearest_attacker = None
+        nearest_dist = float('inf')
         for es_id, es in state.energy_sources.items():
             if great_circle_dist(unit.pos, es.pos) <= vision:
                 tribe.known_energy_sources.add(es_id)
+        for other in state.units.values():
+            if other.tribe_id == unit.tribe_id:
+                continue
+            if other.unit_type != 'attacker':
+                continue
+            d = great_circle_dist(unit.pos, other.pos)
+            if d <= vision and d < nearest_dist:
+                nearest_dist = d
+                nearest_attacker = other
+        tribe.alert_pos = nearest_attacker.pos.copy() if nearest_attacker else None
 
 
 def _worker_behavior(unit: Unit, state: GameState,
@@ -134,32 +161,50 @@ def _worker_behavior(unit: Unit, state: GameState,
 
 
 def _attacker_behavior(unit: Unit, state: GameState, tribe: Tribe) -> None:
-    """Attacker chases nearest enemy in vision; pursues until out of sight."""
-    # Continue chasing current target if still in vision
+    """Attacker prioritizes hunting workers, then other enemies, then enemy queen."""
+    vision = UNIT_STATS["attacker"]["vision"]
+
+    # Continue chasing current target if still close enough
     if unit.target_unit_id is not None:
         target = state.units.get(unit.target_unit_id)
         if target and target.tribe_id != unit.tribe_id:
             dist = great_circle_dist(unit.pos, target.pos)
-            vision = UNIT_STATS["attacker"]["vision"]
             if dist <= vision * 1.5 and not los_blocked(unit.pos, target.pos, state.stones):
                 unit.target_pos = target.pos.copy()
                 return
 
-    # Find new target
+    # Priority 1: nearest enemy worker in vision
+    best_worker: Optional[Unit] = None
+    best_worker_dist = float('inf')
+    for other in state.units.values():
+        if other.tribe_id == unit.tribe_id or other.unit_type != 'worker':
+            continue
+        d = great_circle_dist(unit.pos, other.pos)
+        if d <= vision and d < best_worker_dist and not los_blocked(unit.pos, other.pos, state.stones):
+            best_worker_dist = d
+            best_worker = other
+
+    if best_worker:
+        unit.target_unit_id = best_worker.id
+        unit.target_pos = best_worker.pos.copy()
+        return
+
+    # Priority 2: any other enemy in vision
     nearest = _nearest_enemy_in_vision(unit, state)
     if nearest:
         unit.target_unit_id = nearest.id
         unit.target_pos = nearest.pos.copy()
-    else:
-        unit.target_unit_id = None
-        # Head toward enemy queen if known
-        enemy_queens = [
-            u for u in state.units.values()
-            if u.tribe_id != unit.tribe_id and u.unit_type == "queen"
-        ]
-        if enemy_queens:
-            closest = min(enemy_queens, key=lambda q: great_circle_dist(unit.pos, q.pos))
-            unit.target_pos = closest.pos.copy()
+        return
+
+    # Priority 3: head toward nearest enemy queen
+    unit.target_unit_id = None
+    enemy_queens = [
+        u for u in state.units.values()
+        if u.tribe_id != unit.tribe_id and u.unit_type == "queen"
+    ]
+    if enemy_queens:
+        closest = min(enemy_queens, key=lambda q: great_circle_dist(unit.pos, q.pos))
+        unit.target_pos = closest.pos.copy()
 
 
 def _defender_behavior(unit: Unit, state: GameState, tribe: Tribe,
@@ -182,7 +227,12 @@ def _defender_behavior(unit: Unit, state: GameState, tribe: Tribe,
 
     unit.target_unit_id = None
 
-    # Patrol radius is stable per unit (spread defenders across 30-60 range)
+    # If queen spotted an enemy attacker — intercept it
+    if tribe.alert_pos is not None:
+        unit.target_pos = tribe.alert_pos.copy()
+        return
+
+    # Patrol radius is stable per unit (spread defenders across patrol range)
     patrol_radius = DEFENDER_PATROL_MIN + (unit.id % 31) * (
         (DEFENDER_PATROL_MAX - DEFENDER_PATROL_MIN) / 30.0
     )

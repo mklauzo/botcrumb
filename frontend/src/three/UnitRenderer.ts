@@ -47,6 +47,7 @@ export class UnitRenderer {
   // meshes[unitType] -> single InstancedMesh with per-instance color
   private meshes: Map<UnitType, THREE.InstancedMesh> = new Map()
   private slots: Map<UnitType, SlotManager> = new Map()
+  private unitTribe: Map<number, number> = new Map()  // unitId -> tribeId
   private _dummy = new THREE.Object3D()
   private _up = new THREE.Vector3(0, 1, 0)
 
@@ -92,6 +93,7 @@ export class UnitRenderer {
     this._setMatrix(mesh, slot, pos)
     mesh.instanceMatrix.needsUpdate = true
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true
+    this.unitTribe.set(id, tribeId)
   }
 
   removeUnit(id: number, type: string) {
@@ -106,6 +108,7 @@ export class UnitRenderer {
     sm.unitToSlot.delete(id)
     sm.slotToUnit.delete(slot)
     sm.freeSlots.push(slot)
+    this.unitTribe.delete(id)
 
     // Hide by scaling to 0
     mesh.setMatrixAt(slot, new THREE.Matrix4().makeScale(0, 0, 0))
@@ -174,6 +177,16 @@ export class UnitRenderer {
     }
   }
 
+  getQueenMesh(): THREE.InstancedMesh | undefined {
+    return this.meshes.get('queen')
+  }
+
+  getTribeIdForSlot(slot: number): number | undefined {
+    const unitId = this.slots.get('queen')?.slotToUnit.get(slot)
+    if (unitId === undefined) return undefined
+    return this.unitTribe.get(unitId)
+  }
+
   private clearAll() {
     const zero = new THREE.Matrix4().makeScale(0, 0, 0)
     Array.from(this.meshes.entries()).forEach(([type, mesh]) => {
@@ -186,6 +199,7 @@ export class UnitRenderer {
       }
       mesh.instanceMatrix.needsUpdate = true
     })
+    this.unitTribe.clear()
   }
 
   dispose() {

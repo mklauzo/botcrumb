@@ -1,5 +1,6 @@
 'use client'
 
+import * as THREE from 'three'
 import { useEffect, useRef, useState } from 'react'
 import { SceneManager } from '@/three/SceneManager'
 import { SphereRenderer } from '@/three/SphereRenderer'
@@ -40,6 +41,11 @@ export default function GameCanvas() {
   }>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [tooltip, setTooltip] = useState<{
+    x: number; y: number; name: string; color: string
+    units: { worker: number; attacker: number; defender: number; queen: number }
+  } | null>(null)
+  const raycaster = useRef(new THREE.Raycaster())
 
   const {
     setTribes, updateStats, addEvent, setEventLog, setWinner, setGamePhase,
@@ -131,6 +137,33 @@ export default function GameCanvas() {
 
     ws.connect()
 
+    function _handleMouseMove(e: MouseEvent) {
+      const units = renderersRef.current.units
+      if (!units) return
+      const queenMesh = units.getQueenMesh()
+      if (!queenMesh) return
+      const rect = canvas.getBoundingClientRect()
+      const ndc = new THREE.Vector2(
+        ((e.clientX - rect.left) / rect.width) * 2 - 1,
+        -((e.clientY - rect.top) / rect.height) * 2 + 1,
+      )
+      raycaster.current.setFromCamera(ndc, sceneManager.camera)
+      const hits = raycaster.current.intersectObject(queenMesh)
+      if (hits.length > 0 && hits[0].instanceId !== undefined) {
+        const tribeId = units.getTribeIdForSlot(hits[0].instanceId)
+        if (tribeId !== undefined) {
+          const tribe = useGameStore.getState().tribes.find(t => t.id === tribeId)
+          if (tribe) {
+            setTooltip({ x: e.clientX, y: e.clientY, name: tribe.name, color: tribe.color, units: tribe.units })
+            return
+          }
+        }
+      }
+      setTooltip(null)
+    }
+
+    canvas.addEventListener('mousemove', _handleMouseMove)
+
     function _handleInit(msg: GameInitMessage) {
       const r = renderersRef.current
       const s = sceneRef.current!.scene
@@ -173,6 +206,7 @@ export default function GameCanvas() {
     }
 
     return () => {
+      canvas.removeEventListener('mousemove', _handleMouseMove)
       observer.disconnect()
       ws.close()
       sceneManager.dispose()
@@ -187,6 +221,20 @@ export default function GameCanvas() {
 
   return (
     <div className="w-full h-full relative">
+      {tooltip && (
+        <div
+          className="fixed z-50 pointer-events-none bg-gray-900/90 border border-gray-700 rounded-lg px-3 py-2 text-xs shadow-lg"
+          style={{ left: tooltip.x + 12, top: tooltip.y - 10 }}
+        >
+          <div className="font-bold mb-1" style={{ color: tooltip.color }}>{tooltip.name}</div>
+          <div className="text-gray-300 space-y-0.5">
+            <div><span className="text-blue-400">{tooltip.units.worker}</span> workers</div>
+            <div><span className="text-red-400">{tooltip.units.attacker}</span> attackers</div>
+            <div><span className="text-green-400">{tooltip.units.defender}</span> defenders</div>
+            <div><span className="text-purple-400">{tooltip.units.queen}</span> queen</div>
+          </div>
+        </div>
+      )}
       <canvas
         ref={canvasRef}
         className="w-full h-full block"

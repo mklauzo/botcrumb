@@ -58,10 +58,10 @@ class GameEngine:
 
             # Initial units — temporarily give enough energy to cover spawn costs
             from app.game.constants import UNIT_STATS as _US
-            spawn_cost = (10 * _US["worker"]["cost"] + 3 * _US["attacker"]["cost"]
+            spawn_cost = (20 * _US["worker"]["cost"] + 3 * _US["attacker"]["cost"]
                           + 1 * _US["defender"]["cost"])
             tribe.energy = spawn_cost
-            for _ in range(10):
+            for _ in range(20):
                 self._spawn_unit(tribe, "worker")
             for _ in range(3):
                 self._spawn_unit(tribe, "attacker")
