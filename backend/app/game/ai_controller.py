@@ -7,7 +7,7 @@ from app.game.constants import (
     DEFENSE_RADIUS, DEFENDER_LEASH, ATTACK_RANGE, ATTACK_INTERVAL_TICKS,
     MAX_UNITS, MAX_DEFENDERS, UNIT_STATS, ATTACKER_VS_QUEEN_BONUS, DEFENDER_ZONE_BONUS,
     WORKER_ENERGY_VISION, DEFENDER_PATROL_MIN, DEFENDER_PATROL_MAX,
-    PALACE_BUILD_THRESHOLD, MAX_WORKERS_PER_SOURCE,
+    PALACE_BUILD_THRESHOLD, MAX_WORKERS_PER_SOURCE, ATTACKER_QUEEN_VISION,
 )
 from app.game.types import Unit, Tribe, GameState
 from app.game.sphere_math import great_circle_dist, move_on_sphere, random_sphere_point, los_blocked
@@ -78,7 +78,7 @@ def unit_behavior(unit: Unit, state: GameState,
     elif unit.unit_type == "worker":
         _worker_behavior(unit, state, tribe, rng)
     elif unit.unit_type == "attacker":
-        _attacker_behavior(unit, state, tribe)
+        _attacker_behavior(unit, state, tribe, rng)
     elif unit.unit_type == "defender":
         _defender_behavior(unit, state, tribe, rng)
 
@@ -170,8 +170,9 @@ def _worker_behavior(unit: Unit, state: GameState,
     unit.target_unit_id = None
 
 
-def _attacker_behavior(unit: Unit, state: GameState, tribe: Tribe) -> None:
-    """Attacker prioritizes hunting workers, then other enemies, then enemy queen."""
+def _attacker_behavior(unit: Unit, state: GameState, tribe: Tribe,
+                        rng: np.random.Generator) -> None:
+    """Attacker hunts enemies in vision; explores randomly when no target found."""
     vision = UNIT_STATS["attacker"]["vision"]
 
     # Continue chasing current target if still close enough
@@ -206,15 +207,26 @@ def _attacker_behavior(unit: Unit, state: GameState, tribe: Tribe) -> None:
         unit.target_pos = nearest.pos.copy()
         return
 
-    # Priority 3: head toward nearest enemy queen
+    # Priority 3: enemy queen spotted within extended queen-vision radius
+    best_queen: Optional[Unit] = None
+    best_queen_dist = float('inf')
+    for other in state.units.values():
+        if other.tribe_id == unit.tribe_id or other.unit_type != 'queen':
+            continue
+        d = great_circle_dist(unit.pos, other.pos)
+        if d <= ATTACKER_QUEEN_VISION and d < best_queen_dist and not los_blocked(unit.pos, other.pos, state.stones):
+            best_queen_dist = d
+            best_queen = other
+
+    if best_queen:
+        unit.target_unit_id = best_queen.id
+        unit.target_pos = best_queen.pos.copy()
+        return
+
+    # No target in vision — explore randomly (like a worker searching for energy)
     unit.target_unit_id = None
-    enemy_queens = [
-        u for u in state.units.values()
-        if u.tribe_id != unit.tribe_id and u.unit_type == "queen"
-    ]
-    if enemy_queens:
-        closest = min(enemy_queens, key=lambda q: great_circle_dist(unit.pos, q.pos))
-        unit.target_pos = closest.pos.copy()
+    if unit.target_pos is None or _at_target(unit):
+        unit.target_pos = random_sphere_point(rng)
 
 
 def _defender_behavior(unit: Unit, state: GameState, tribe: Tribe,

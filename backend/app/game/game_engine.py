@@ -205,6 +205,17 @@ class GameEngine:
             if unit.unit_type == "queen":
                 continue
             speed = UNIT_STATS[unit.unit_type]["speed"]
+
+            # Workers within queen's vision radius move 5x faster
+            if unit.unit_type == "worker":
+                tribe = self.state.tribes.get(unit.tribe_id)
+                queen = self.state.units.get(tribe.queen_id) if tribe and tribe.queen_id else None
+                if queen and tribe:
+                    queen_vision = (UNIT_STATS["queen"]["vision"]
+                                    + math.isqrt(tribe.palace_bricks) * PALACE_VISION_PER_FLOOR)
+                    if great_circle_dist(unit.pos, queen.pos) <= queen_vision:
+                        speed *= 5.0
+
             target = unit.target_pos
             if target is not None:
                 unit.pos = move_on_sphere(unit.pos, target, speed, DT)
@@ -248,17 +259,22 @@ class GameEngine:
 
                 if target_unit.hp <= 0:
                     tribe_name = self.state.tribes[target_unit.tribe_id].name
-                    attacker_tribe = self.state.tribes[attacker.tribe_id].name
+                    attacker_tribe_obj = self.state.tribes[attacker.tribe_id]
+                    attacker_tribe = attacker_tribe_obj.name
+                    # Attacker kills enemy worker → queen gets 5 energy bonus
+                    if attacker.unit_type == "attacker" and target_unit.unit_type == "worker":
+                        attacker_tribe_obj.energy += 5
                     self.state.events.append({
                         "type": "unit_killed",
                         "tribe_id": attacker.tribe_id,
                         "msg": f"{attacker_tribe} killed {tribe_name}'s {target_unit.unit_type}",
                     })
                     if target_unit.unit_type == "queen":
+                        attacker_tribe_obj.energy += 70
                         self.state.events.append({
                             "type": "queen_killed",
                             "tribe_id": attacker.tribe_id,
-                            "msg": f"{tribe_name}'s queen was eliminated by {attacker_tribe}!",
+                            "msg": f"{tribe_name}'s queen was eliminated by {attacker_tribe}! (+70 energy)",
                         })
 
     def _collect_energy(self) -> None:

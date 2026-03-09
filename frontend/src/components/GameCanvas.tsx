@@ -10,6 +10,7 @@ import { EnergyRenderer } from '@/three/EnergyRenderer'
 import { HitFlash } from '@/three/HitFlash'
 import { QueenVisionRenderer } from '@/three/QueenVisionRenderer'
 import { PalaceRenderer } from '@/three/PalaceRenderer'
+import { EnergyConnectionRenderer } from '@/three/EnergyConnectionRenderer'
 import {
   GameSocket,
   type DiffMessage,
@@ -40,6 +41,7 @@ export default function GameCanvas() {
     flash?: HitFlash
     queenVision?: QueenVisionRenderer
     palace?: PalaceRenderer
+    energyConn?: EnergyConnectionRenderer
   }>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -197,6 +199,8 @@ export default function GameCanvas() {
       r.units.loadSnapshot(msg.units)
       r.queenVision.setFromSnapshot(msg.units, visionMap)
       r.palace.setFromSnapshot(msg.units, msg.tribes)
+      r.energyConn = new EnergyConnectionRenderer(s)
+      r.energyConn.setFromSnapshot(msg.units, msg.tribes, msg.energy_sources ?? [])
     }
 
     function _handleDiff(msg: DiffMessage) {
@@ -205,9 +209,9 @@ export default function GameCanvas() {
       // queenVision must run before units.applyDiff (which deletes from unitTypesRef)
       r.queenVision?.applyDiff(msg.spawned ?? [], msg.died ?? [], unitTypesRef.current)
       r.units.applyDiff(msg.moved ?? [], msg.spawned ?? [], msg.died ?? [], unitTypesRef.current)
-      for (const es of msg.energy_spawned ?? []) r.energy?.addSource(es.id, es.pos)
-      for (const id of msg.energy_depleted ?? []) r.energy?.removeSource(id)
-      for (const claim of msg.energy_claimed ?? []) r.energy?.claimSource(claim.id, claim.tribe_id)
+      for (const es of msg.energy_spawned ?? []) { r.energy?.addSource(es.id, es.pos); r.energyConn?.addSource(es.id, es.pos) }
+      for (const id of msg.energy_depleted ?? []) { r.energy?.removeSource(id); r.energyConn?.removeSource(id) }
+      for (const claim of msg.energy_claimed ?? []) { r.energy?.claimSource(claim.id, claim.tribe_id); r.energyConn?.claimSource(claim.id, claim.tribe_id) }
       for (const pos of msg.hit_flashes ?? []) r.flash?.flash(pos)
       if (msg.tribe_stats) {
         r.queenVision?.updateVisionRadii(msg.tribe_stats)
@@ -232,6 +236,7 @@ export default function GameCanvas() {
       renderers.energy?.dispose()
       renderers.queenVision?.dispose()
       renderers.palace?.dispose()
+      renderers.energyConn?.dispose()
     }
   }, []) // eslint-disable-line
 
