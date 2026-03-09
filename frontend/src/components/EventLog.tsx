@@ -5,6 +5,7 @@ import { useGameStore } from '@/store/gameStore'
 export default function EventLog() {
   const eventLog = useGameStore(s => s.eventLog)
   const tribes = useGameStore(s => s.tribes)
+  const energySources = useGameStore(s => s.energySources)
 
   const getTribeColor = (tribeId: number) => {
     return tribes.find(t => t.id === tribeId)?.color ?? '#aaa'
@@ -23,6 +24,10 @@ export default function EventLog() {
     <div className="flex flex-col h-full">
       <div className="text-xs font-bold text-gray-400 uppercase tracking-wider px-2 py-1 border-b border-gray-800">
         Event Log
+      </div>
+      <div className="flex gap-3 px-2 py-1 border-b border-gray-800 text-xs tabular-nums">
+        <span className="text-gray-500">Źródła: <span className="text-white">{energySources.total}</span></span>
+        <span className="text-gray-500">Eksploatowane: <span className="text-yellow-400">{energySources.exploited}</span></span>
       </div>
       <div className="flex-1 overflow-y-auto px-2 py-1 space-y-0.5">
         {eventLog.length === 0 && (

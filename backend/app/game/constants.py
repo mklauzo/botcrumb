@@ -12,9 +12,9 @@ DEFENDER_PATROL_MAX = 400.0  # max patrol radius around queen
 ATTACK_INTERVAL_TICKS = 25  # 1 attack every 5 seconds at 5 ticks/sec
 ATTACK_RANGE = 3.0          # geodesic distance to trigger attack
 
-ENERGY_SPAWN_INTERVAL = 9000  # ticks (30 minutes at 200ms/tick)
-ENERGY_SPAWN_COUNT = (1, 5)  # min/max energy sources per spawn
-ENERGY_AMOUNT = (10, 60)     # min/max energy per source
+ENERGY_SPAWN_INTERVAL = 3000  # ticks (10 minutes at 200ms/tick)
+ENERGY_SPAWN_COUNT = (3, 8)  # min/max energy sources per spawn
+ENERGY_AMOUNT = (10, 100)    # min/max energy per source
 
 AI_DECISION_INTERVAL = 5    # queen AI runs every N ticks
 

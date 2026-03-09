@@ -50,9 +50,11 @@ export default function GameCanvas() {
     units: { worker: number; attacker: number; defender: number; queen: number }
   } | null>(null)
   const raycaster = useRef(new THREE.Raycaster())
+  const ownedSourceIds = useRef<Set<number>>(new Set())
+  const totalSourceCount = useRef<number>(0)
 
   const {
-    setTribes, updateStats, addEvent, setEventLog, setWinner, setGamePhase,
+    setTribes, updateStats, addEvent, setEventLog, setWinner, setGamePhase, setEnergySources,
   } = useGameStore()
 
   // Loading timeout — if game_init never arrives, show an error
@@ -201,6 +203,13 @@ export default function GameCanvas() {
       r.palace.setFromSnapshot(msg.units, msg.tribes)
       r.energyConn = new EnergyConnectionRenderer(s)
       r.energyConn.setFromSnapshot(msg.units, msg.tribes, msg.energy_sources ?? [])
+
+      ownedSourceIds.current.clear()
+      totalSourceCount.current = msg.energy_sources?.length ?? 0
+      for (const es of msg.energy_sources ?? []) {
+        if (es.owner_tribe_id != null) ownedSourceIds.current.add(es.id)
+      }
+      setEnergySources(totalSourceCount.current, ownedSourceIds.current.size)
     }
 
     function _handleDiff(msg: DiffMessage) {
@@ -209,9 +218,12 @@ export default function GameCanvas() {
       // queenVision must run before units.applyDiff (which deletes from unitTypesRef)
       r.queenVision?.applyDiff(msg.spawned ?? [], msg.died ?? [], unitTypesRef.current)
       r.units.applyDiff(msg.moved ?? [], msg.spawned ?? [], msg.died ?? [], unitTypesRef.current)
-      for (const es of msg.energy_spawned ?? []) { r.energy?.addSource(es.id, es.pos); r.energyConn?.addSource(es.id, es.pos) }
-      for (const id of msg.energy_depleted ?? []) { r.energy?.removeSource(id); r.energyConn?.removeSource(id) }
-      for (const claim of msg.energy_claimed ?? []) { r.energy?.claimSource(claim.id, claim.tribe_id); r.energyConn?.claimSource(claim.id, claim.tribe_id) }
+      for (const es of msg.energy_spawned ?? []) { r.energy?.addSource(es.id, es.pos); r.energyConn?.addSource(es.id, es.pos); totalSourceCount.current++ }
+      for (const id of msg.energy_depleted ?? []) { r.energy?.removeSource(id); r.energyConn?.removeSource(id); totalSourceCount.current--; ownedSourceIds.current.delete(id) }
+      for (const claim of msg.energy_claimed ?? []) { r.energy?.claimSource(claim.id, claim.tribe_id); r.energyConn?.claimSource(claim.id, claim.tribe_id); ownedSourceIds.current.add(claim.id) }
+      if ((msg.energy_spawned?.length ?? 0) + (msg.energy_depleted?.length ?? 0) + (msg.energy_claimed?.length ?? 0) > 0) {
+        setEnergySources(totalSourceCount.current, ownedSourceIds.current.size)
+      }
       for (const pos of msg.hit_flashes ?? []) r.flash?.flash(pos)
       if (msg.tribe_stats) {
         r.queenVision?.updateVisionRadii(msg.tribe_stats)

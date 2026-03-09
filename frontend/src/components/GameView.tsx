@@ -17,18 +17,19 @@ export default function GameView() {
 
   return (
     <div className="flex h-screen w-screen bg-black overflow-hidden">
+      {/* Panel toggle button — fixed above everything, shifts with panel */}
+      <button
+        onClick={() => setPanelOpen(v => !v)}
+        className="fixed top-2 z-30 bg-gray-900/80 border border-gray-700 rounded p-1.5 text-gray-400 hover:text-white text-sm leading-none select-none transition-[right] duration-200"
+        style={{ right: panelOpen ? '296px' : '8px' }}
+        title={panelOpen ? 'Ukryj panel' : 'Pokaż panel'}
+      >
+        {panelOpen ? '›' : '‹'}
+      </button>
+
       {/* Main 3D view */}
       <div className="flex-1 relative min-w-0">
         <GameCanvas />
-
-        {/* Panel toggle button */}
-        <button
-          onClick={() => setPanelOpen(v => !v)}
-          className="absolute top-2 right-2 z-10 bg-gray-900/80 border border-gray-700 rounded p-1.5 text-gray-400 hover:text-white text-sm leading-none select-none"
-          title={panelOpen ? 'Ukryj panel' : 'Pokaż panel'}
-        >
-          {panelOpen ? '›' : '‹'}
-        </button>
 
         {winner && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">

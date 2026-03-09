@@ -34,12 +34,14 @@ interface GameStore {
   eventCounter: number
   pendingStart: boolean
   gameStartTime: number | null
+  energySources: { total: number; exploited: number }
 
   setGamePhase: (phase: GamePhase) => void
   setSelectedModel: (model: string) => void
   setNumTribes: (n: number) => void
   setApiKey: (provider: string, key: string) => void
   setPendingStart: (v: boolean) => void
+  setEnergySources: (total: number, exploited: number) => void
   setTribes: (tribes: Array<{ id: number; name: string; color: string }>, startedAt?: number) => void
   updateStats: (stats: Array<{ id: number; energy: number; units: Record<string, number>; alive: boolean }>) => void
   addEvent: (event: Omit<GameEvent, 'id' | 'timestamp'>) => void
@@ -69,6 +71,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   eventCounter: 0,
   pendingStart: false,
   gameStartTime: null,
+  energySources: { total: 0, exploited: 0 },
 
   setGamePhase: (phase) => set({ gamePhase: phase }),
   setSelectedModel: (model) => set({ selectedModel: model }),
@@ -76,6 +79,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   setApiKey: (provider, key) =>
     set(state => ({ apiKeys: { ...state.apiKeys, [provider]: key } })),
   setPendingStart: (v) => set({ pendingStart: v }),
+  setEnergySources: (total, exploited) => set({ energySources: { total, exploited } }),
 
   getActiveApiKey: () => {
     const { selectedModel, apiKeys } = get()
@@ -159,6 +163,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       eventCounter: 0,
       pendingStart: false,
       gameStartTime: null,
+      energySources: { total: 0, exploited: 0 },
     })
   },
 }))
