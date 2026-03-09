@@ -1,11 +1,14 @@
 """Main game engine: tick loop, spawning, combat, collection."""
+import math
+import time
 import numpy as np
 from typing import Optional
 
 from app.game.constants import (
     SPHERE_RADIUS, DT, MAX_UNITS, ATTACK_RANGE,
     ENERGY_SPAWN_INTERVAL, ENERGY_SPAWN_COUNT, ENERGY_AMOUNT,
-    AI_DECISION_INTERVAL, UNIT_STATS, TRIBE_COLORS, DEFENSE_RADIUS
+    AI_DECISION_INTERVAL, UNIT_STATS, TRIBE_COLORS, DEFENSE_RADIUS,
+    PALACE_VISION_PER_FLOOR,
 )
 from app.game.types import Unit, Tribe, EnergySource, Stone, GameState
 from app.game.sphere_math import (
@@ -27,7 +30,7 @@ class GameEngine:
         self._diff_data: dict = {}
 
     def init_game(self, num_tribes: int, tribe_names: list[str]) -> None:
-        self.state = GameState(running=True)
+        self.state = GameState(running=True, started_at=time.time())
         self.rng = np.random.default_rng()
 
         # Place queens using fibonacci sphere
@@ -126,6 +129,7 @@ class GameEngine:
             "hit_flashes": [],
             "energy_spawned": [],
             "energy_depleted": [],
+            "energy_claimed": [],
             "tribe_stats": [],
             "events": [],
         }
@@ -173,9 +177,12 @@ class GameEngine:
         for tribe in self.state.tribes.values():
             if not tribe.alive:
                 continue
-            unit_type = queen_ai_decision(tribe, self.state, self.rng)
-            if unit_type:
-                new_unit = self._spawn_unit(tribe, unit_type)
+            decision = queen_ai_decision(tribe, self.state, self.rng)
+            if decision == "palace":
+                tribe.energy -= 1
+                tribe.palace_bricks += 1
+            elif decision:
+                new_unit = self._spawn_unit(tribe, decision)
                 if new_unit:
                     self._diff_data["spawned"].append(self._serialize_unit(new_unit))
 
@@ -275,19 +282,20 @@ class GameEngine:
                         unit.carrying_energy = True
                         unit.target_pos = None
 
+                        # Claim ownership of this source
+                        if es.owner_tribe_id != tribe.id:
+                            es.owner_tribe_id = tribe.id
+                            self._diff_data["energy_claimed"].append(
+                                {"id": es_id, "tribe_id": tribe.id}
+                            )
+
                         # Share location with tribe
                         if es.amount > 0:
                             tribe.known_energy_sources.add(es_id)
-                            self.state.events.append({
-                                "type": "energy_found",
-                                "tribe_id": tribe.id,
-                                "msg": f"{tribe.name} found energy source ({es.amount} remaining)",
-                            })
                         else:
                             tribe.known_energy_sources.discard(es_id)
                             del self.state.energy_sources[es_id]
                             self._diff_data["energy_depleted"].append(es_id)
-                            # Remove from all tribes
                             for t in self.state.tribes.values():
                                 t.known_energy_sources.discard(es_id)
                         break
@@ -339,11 +347,15 @@ class GameEngine:
             for u in self.state.units.values():
                 if u.tribe_id == tribe.id:
                     counts[u.unit_type] = counts.get(u.unit_type, 0) + 1
+            palace_height = math.isqrt(tribe.palace_bricks)
+            vision_radius = UNIT_STATS["queen"]["vision"] + palace_height * PALACE_VISION_PER_FLOOR
             self._diff_data["tribe_stats"].append({
                 "id": tribe.id,
                 "energy": tribe.energy,
                 "units": counts,
                 "alive": tribe.alive,
+                "palace_bricks": tribe.palace_bricks,
+                "vision_radius": vision_radius,
             })
 
         # Events
@@ -364,18 +376,25 @@ class GameEngine:
         return {
             "type": "game_init",
             "tick": self.state.tick,
+            "started_at": int(self.state.started_at * 1000),  # ms for JS
             "sphere_radius": SPHERE_RADIUS,
             "stones": [
                 {"id": s.id, "center": s.center.tolist(), "cap_angle": s.cap_angle}
                 for s in self.state.stones
             ],
             "tribes": [
-                {"id": t.id, "name": t.name, "color": t.color, "energy": t.energy, "alive": t.alive}
+                {
+                    "id": t.id, "name": t.name, "color": t.color,
+                    "energy": t.energy, "alive": t.alive,
+                    "palace_bricks": t.palace_bricks,
+                    "vision_radius": UNIT_STATS["queen"]["vision"] + math.isqrt(t.palace_bricks) * PALACE_VISION_PER_FLOOR,
+                }
                 for t in self.state.tribes.values()
             ],
             "units": [self._serialize_unit(u) for u in self.state.units.values()],
             "energy_sources": [
-                {"id": es.id, "pos": es.pos.tolist(), "amount": es.amount}
+                {"id": es.id, "pos": es.pos.tolist(), "amount": es.amount,
+                 "owner_tribe_id": es.owner_tribe_id}
                 for es in self.state.energy_sources.values()
             ],
         }

@@ -1,11 +1,12 @@
 export interface GameInitMessage {
   type: 'game_init'
   tick: number
+  started_at: number   // Unix ms when game started (authoritative source)
   sphere_radius: number
   stones: Array<{ id: number; center: [number, number, number]; cap_angle: number }>
-  tribes: Array<{ id: number; name: string; color: string; energy: number; alive: boolean }>
+  tribes: Array<{ id: number; name: string; color: string; energy: number; alive: boolean; palace_bricks: number; vision_radius: number }>
   units: Array<{ id: number; tribe_id: number; type: string; pos: [number, number, number]; hp: number; max_hp: number }>
-  energy_sources: Array<{ id: number; pos: [number, number, number]; amount: number }>
+  energy_sources: Array<{ id: number; pos: [number, number, number]; amount: number; owner_tribe_id: number | null }>
 }
 
 export interface DiffMessage {
@@ -18,7 +19,8 @@ export interface DiffMessage {
   hit_flashes: Array<[number, number, number]>
   energy_spawned: Array<{ id: number; pos: [number, number, number]; amount: number }>
   energy_depleted: number[]
-  tribe_stats: Array<{ id: number; energy: number; units: Record<string, number>; alive: boolean }>
+  energy_claimed: Array<{ id: number; tribe_id: number }>
+  tribe_stats: Array<{ id: number; energy: number; units: Record<string, number>; alive: boolean; palace_bricks: number; vision_radius: number }>
   events: Array<{ type: string; tribe_id: number; msg: string }>
 }
 

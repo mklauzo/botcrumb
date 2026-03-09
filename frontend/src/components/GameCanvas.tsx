@@ -9,6 +9,7 @@ import { StoneRenderer } from '@/three/StoneRenderer'
 import { EnergyRenderer } from '@/three/EnergyRenderer'
 import { HitFlash } from '@/three/HitFlash'
 import { QueenVisionRenderer } from '@/three/QueenVisionRenderer'
+import { PalaceRenderer } from '@/three/PalaceRenderer'
 import {
   GameSocket,
   type DiffMessage,
@@ -38,6 +39,7 @@ export default function GameCanvas() {
     energy?: EnergyRenderer
     flash?: HitFlash
     queenVision?: QueenVisionRenderer
+    palace?: PalaceRenderer
   }>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -116,7 +118,7 @@ export default function GameCanvas() {
         pendingDiffs.current.push(msg)
       }
       if (msg.type === 'game_init') {
-        setTribes(msg.tribes)
+        setTribes(msg.tribes, msg.started_at)
         setGamePhase('playing')
         setLoading(false)
       }
@@ -179,14 +181,22 @@ export default function GameCanvas() {
       r.stones = new StoneRenderer(s)
       r.energy = new EnergyRenderer(s)
       r.queenVision = new QueenVisionRenderer(s)
+      r.palace = new PalaceRenderer(s)
 
       r.stones.setStones(msg.stones, msg.sphere_radius)
+
+      const tribeColorData = msg.tribes.map(t => ({ id: t.id, color: t.color }))
+      r.energy.setTribeColors(tribeColorData)
       r.energy.setEnergySources(msg.energy_sources ?? [])
+
+      const visionMap = new Map<number, number>()
+      for (const t of msg.tribes) visionMap.set(t.id, t.vision_radius)
 
       unitTypesRef.current.clear()
       for (const u of msg.units) unitTypesRef.current.set(u.id, u.type)
       r.units.loadSnapshot(msg.units)
-      r.queenVision.setFromSnapshot(msg.units)
+      r.queenVision.setFromSnapshot(msg.units, visionMap)
+      r.palace.setFromSnapshot(msg.units, msg.tribes)
     }
 
     function _handleDiff(msg: DiffMessage) {
@@ -197,7 +207,12 @@ export default function GameCanvas() {
       r.units.applyDiff(msg.moved ?? [], msg.spawned ?? [], msg.died ?? [], unitTypesRef.current)
       for (const es of msg.energy_spawned ?? []) r.energy?.addSource(es.id, es.pos)
       for (const id of msg.energy_depleted ?? []) r.energy?.removeSource(id)
+      for (const claim of msg.energy_claimed ?? []) r.energy?.claimSource(claim.id, claim.tribe_id)
       for (const pos of msg.hit_flashes ?? []) r.flash?.flash(pos)
+      if (msg.tribe_stats) {
+        r.queenVision?.updateVisionRadii(msg.tribe_stats)
+        for (const ts of msg.tribe_stats) r.palace?.updateBricks(ts.id, ts.palace_bricks)
+      }
     }
 
     function _handleHistory(msg: EventHistoryMessage) {
@@ -216,6 +231,7 @@ export default function GameCanvas() {
       renderers.stones?.dispose()
       renderers.energy?.dispose()
       renderers.queenVision?.dispose()
+      renderers.palace?.dispose()
     }
   }, []) // eslint-disable-line
 

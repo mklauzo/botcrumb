@@ -40,7 +40,7 @@ interface GameStore {
   setNumTribes: (n: number) => void
   setApiKey: (provider: string, key: string) => void
   setPendingStart: (v: boolean) => void
-  setTribes: (tribes: Array<{ id: number; name: string; color: string }>) => void
+  setTribes: (tribes: Array<{ id: number; name: string; color: string }>, startedAt?: number) => void
   updateStats: (stats: Array<{ id: number; energy: number; units: Record<string, number>; alive: boolean }>) => void
   addEvent: (event: Omit<GameEvent, 'id' | 'timestamp'>) => void
   setEventLog: (events: Array<{ type: string; tribe_id: number; msg: string; tick?: number }>) => void
@@ -82,9 +82,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
     return apiKeys[providerOf(selectedModel)] ?? ''
   },
 
-  setTribes: (tribes) =>
+  setTribes: (tribes, startedAt?) => {
+    // Use server-provided start time (authoritative); fall back to localStorage on reconnect
+    const gameStartTime = startedAt ?? (() => {
+      const stored = localStorage.getItem('gameStartTime')
+      return stored ? parseInt(stored, 10) : Date.now()
+    })()
+    localStorage.setItem('gameStartTime', String(gameStartTime))
     set({
-      gameStartTime: Date.now(),
+      gameStartTime,
       tribes: tribes.map(t => ({
         ...t,
         energy: 0,
@@ -92,7 +98,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
         maxUnits: { worker: 0, attacker: 0, defender: 0, queen: 0 },
         alive: true,
       })),
-    }),
+    })
+  },
 
   updateStats: (stats) =>
     set(state => ({
@@ -142,7 +149,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   setWinner: (winner) => set({ winner, gamePhase: 'over' }),
 
-  resetGame: () =>
+  resetGame: () => {
+    localStorage.removeItem('gameStartTime')
     set({
       gamePhase: 'setup',
       tribes: [],
@@ -151,5 +159,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
       eventCounter: 0,
       pendingStart: false,
       gameStartTime: null,
-    }),
+    })
+  },
 }))

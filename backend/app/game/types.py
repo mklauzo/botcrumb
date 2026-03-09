@@ -30,6 +30,8 @@ class Tribe:
     known_energy_sources: set = field(default_factory=set)
     # queen alert: position of enemy attacker spotted by queen (None if no threat)
     alert_pos: Optional[np.ndarray] = None
+    # palace bricks built (each costs 1 energy, height = floor(sqrt(bricks)))
+    palace_bricks: int = 0
 
 
 @dataclass
@@ -38,6 +40,7 @@ class EnergySource:
     pos: np.ndarray         # 3D point on sphere surface
     amount: int
     reserved_by: Optional[int] = None  # unit id reserving this source
+    owner_tribe_id: Optional[int] = None  # tribe that last collected from this source
 
 
 @dataclass
@@ -51,6 +54,7 @@ class Stone:
 class GameState:
     tick: int = 0
     running: bool = False
+    started_at: float = 0.0   # Unix timestamp (seconds) when game started
     tribes: dict = field(default_factory=dict)    # tribe_id -> Tribe
     units: dict = field(default_factory=dict)     # unit_id -> Unit
     energy_sources: dict = field(default_factory=dict)  # es_id -> EnergySource

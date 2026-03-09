@@ -7,6 +7,7 @@ from app.game.constants import (
     DEFENSE_RADIUS, DEFENDER_LEASH, ATTACK_RANGE, ATTACK_INTERVAL_TICKS,
     MAX_UNITS, MAX_DEFENDERS, UNIT_STATS, ATTACKER_VS_QUEEN_BONUS, DEFENDER_ZONE_BONUS,
     WORKER_ENERGY_VISION, DEFENDER_PATROL_MIN, DEFENDER_PATROL_MAX,
+    PALACE_BUILD_THRESHOLD, MAX_WORKERS_PER_SOURCE,
 )
 from app.game.types import Unit, Tribe, GameState
 from app.game.sphere_math import great_circle_dist, move_on_sphere, random_sphere_point, los_blocked
@@ -37,17 +38,18 @@ def queen_ai_decision(tribe: Tribe, state: GameState, rng: np.random.Generator) 
         for u in state.units.values()
     )
 
-    # 1. Priority: workers — keep at least 2, or if too poor to do anything else
-    if len(workers) < 2 or tribe.energy < UNIT_STATS["worker"]["cost"]:
-        if tribe.energy >= UNIT_STATS["worker"]["cost"]:
-            return "worker"
+    if tribe.energy < UNIT_STATS["worker"]["cost"]:
         return None
 
-    # 2. Defenders — when under attack or below minimum, up to MAX_DEFENDERS
+    # 1. Defenders — when under attack or below minimum, up to MAX_DEFENDERS
     need_defenders = (enemies_in_zone or under_attack or len(defenders) < min_defenders)
     if need_defenders and len(defenders) < MAX_DEFENDERS:
         if tribe.energy >= UNIT_STATS["defender"]["cost"]:
             return "defender"
+
+    # 2. Palace — greedy queen builds palace when defenses solid and has spare energy
+    if not under_attack and tribe.energy >= PALACE_BUILD_THRESHOLD and len(defenders) >= min_defenders:
+        return "palace"
 
     # 3. Attackers — only when not under attack, energy comfortable, ratio < 2:1 vs defenders
     if not under_attack and tribe.energy >= 20:
@@ -60,7 +62,8 @@ def queen_ai_decision(tribe: Tribe, state: GameState, rng: np.random.Generator) 
         if tribe.energy >= UNIT_STATS["attacker"]["cost"]:
             return "attacker"
 
-    return None
+    # 5. Workers — always, no cap
+    return "worker"
 
 
 def unit_behavior(unit: Unit, state: GameState,
@@ -135,7 +138,7 @@ def _worker_behavior(unit: Unit, state: GameState,
         if great_circle_dist(unit.pos, es.pos) <= WORKER_ENERGY_VISION:
             tribe.known_energy_sources.add(es_id)
 
-    # Go to known energy source
+    # Go to known energy source (respect MAX_WORKERS_PER_SOURCE)
     if tribe.known_energy_sources:
         best_es = None
         best_dist = float("inf")
@@ -143,6 +146,13 @@ def _worker_behavior(unit: Unit, state: GameState,
             es = state.energy_sources.get(es_id)
             if es is None:
                 tribe.known_energy_sources.discard(es_id)
+                continue
+            # Skip sources that already have max workers assigned
+            workers_here = sum(
+                1 for u in state.units.values()
+                if u.unit_type == "worker" and u.known_energy_id == es_id
+            )
+            if workers_here >= MAX_WORKERS_PER_SOURCE:
                 continue
             d = great_circle_dist(unit.pos, es.pos)
             if d < best_dist:
@@ -209,7 +219,7 @@ def _attacker_behavior(unit: Unit, state: GameState, tribe: Tribe) -> None:
 
 def _defender_behavior(unit: Unit, state: GameState, tribe: Tribe,
                         rng: np.random.Generator) -> None:
-    """Defender patrols around queen at radius 30-60, attacks nearby enemies."""
+    """Defender patrols around queen or guards energy sources if surplus."""
     queen = state.units.get(tribe.queen_id) if tribe.queen_id else None
     if queen is None:
         return
@@ -231,6 +241,30 @@ def _defender_behavior(unit: Unit, state: GameState, tribe: Tribe,
     if tribe.alert_pos is not None:
         unit.target_pos = tribe.alert_pos.copy()
         return
+
+    # Determine if this defender should guard an energy source (surplus defenders)
+    tribe_units = [u for u in state.units.values() if u.tribe_id == tribe.id]
+    num_tribes_alive = sum(1 for t in state.tribes.values() if t.alive)
+    min_defenders = max(math.ceil(num_tribes_alive * 1.5), math.ceil(len(tribe_units) * 0.30))
+    tribe_defender_ids = sorted(u.id for u in tribe_units if u.unit_type == "defender")
+    my_rank = tribe_defender_ids.index(unit.id) if unit.id in tribe_defender_ids else 0
+
+    # Surplus defenders (rank >= min_defenders) guard nearest known energy source
+    if my_rank >= int(min_defenders) and tribe.known_energy_sources:
+        best_es = None
+        best_dist = float("inf")
+        for es_id in tribe.known_energy_sources:
+            es = state.energy_sources.get(es_id)
+            if es is None:
+                continue
+            d = great_circle_dist(unit.pos, es.pos)
+            if d < best_dist:
+                best_dist = d
+                best_es = es
+        if best_es:
+            if unit.target_pos is None or _at_target(unit):
+                unit.target_pos = _random_patrol_point(best_es.pos, 30.0, rng)
+            return
 
     # Patrol radius is stable per unit (spread defenders across patrol range)
     patrol_radius = DEFENDER_PATROL_MIN + (unit.id % 31) * (
