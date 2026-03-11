@@ -8,6 +8,7 @@ from app.game.constants import (
     MAX_UNITS, MAX_DEFENDERS, UNIT_STATS, ATTACKER_VS_QUEEN_BONUS, DEFENDER_ZONE_BONUS,
     WORKER_ENERGY_VISION, DEFENDER_PATROL_MIN, DEFENDER_PATROL_MAX,
     PALACE_BUILD_THRESHOLD, MAX_WORKERS_PER_SOURCE, ATTACKER_QUEEN_VISION,
+    PALACE_VISION_PER_FLOOR,
 )
 from app.game.types import Unit, Tribe, GameState
 from app.game.sphere_math import great_circle_dist, move_on_sphere, random_sphere_point, los_blocked
@@ -47,20 +48,20 @@ def queen_ai_decision(tribe: Tribe, state: GameState, rng: np.random.Generator) 
         if tribe.energy >= UNIT_STATS["defender"]["cost"]:
             return "defender"
 
-    # 2. Palace — greedy queen builds palace when defenses solid and has spare energy
-    if not under_attack and tribe.energy >= PALACE_BUILD_THRESHOLD and len(defenders) >= min_defenders:
-        return "palace"
-
-    # 3. Attackers — only when not under attack, energy comfortable, ratio < 2:1 vs defenders
-    if not under_attack and tribe.energy >= 20:
-        if len(attackers) < len(defenders) * 2:
+    # 2. Attackers — aggressive production when energy comfortable, ratio < 3:1 vs defenders
+    if not under_attack and tribe.energy >= 12:
+        if len(attackers) < len(defenders) * 3:
             if tribe.energy >= UNIT_STATS["attacker"]["cost"]:
                 return "attacker"
 
-    # 4. Late game / rich: build attackers freely when defenses are solid
-    if not under_attack and tribe.energy >= 30 and len(defenders) >= min_defenders:
+    # 3. Late game / rich: build attackers freely when defenses are solid
+    if not under_attack and tribe.energy >= 20 and len(defenders) >= min_defenders:
         if tribe.energy >= UNIT_STATS["attacker"]["cost"]:
             return "attacker"
+
+    # 4. Palace — greedy queen builds palace when defenses solid and has spare energy
+    if not under_attack and tribe.energy >= PALACE_BUILD_THRESHOLD and len(defenders) >= min_defenders:
+        return "palace"
 
     # 5. Workers — always, no cap
     return "worker"
@@ -238,8 +239,14 @@ def _defender_behavior(unit: Unit, state: GameState, tribe: Tribe,
 
     queen_dist = great_circle_dist(unit.pos, queen.pos)
 
-    # Attack nearest enemy; chase within leash distance from queen
-    nearest = _nearest_enemy_in_vision(unit, state)
+    # If defender is within queen's vision radius, it can see all enemies queen sees
+    queen_vision = (UNIT_STATS["queen"]["vision"]
+                    + math.isqrt(tribe.palace_bricks) * PALACE_VISION_PER_FLOOR)
+    in_queen_vision = great_circle_dist(unit.pos, queen.pos) <= queen_vision
+    if in_queen_vision:
+        nearest = _nearest_enemy_in_range(unit, state, queen_vision)
+    else:
+        nearest = _nearest_enemy_in_vision(unit, state)
     if nearest:
         unit.target_unit_id = nearest.id
         enemy_dist = great_circle_dist(unit.pos, nearest.pos)
@@ -302,6 +309,21 @@ def _random_patrol_point(queen_pos: np.ndarray, radius: float,
     angle = rng.uniform(0, 2 * math.pi)
     d = math.cos(angle) * t + math.sin(angle) * b
     return R * (math.cos(radius / R) * q + math.sin(radius / R) * d)
+
+
+def _nearest_enemy_in_range(unit: Unit, state: GameState, vision: float) -> Optional[Unit]:
+    """Find nearest enemy within a given vision radius (ignores unit's own vision stat)."""
+    best = None
+    best_dist = float("inf")
+    for other in state.units.values():
+        if other.tribe_id == unit.tribe_id:
+            continue
+        d = great_circle_dist(unit.pos, other.pos)
+        if d <= vision and d < best_dist:
+            if not los_blocked(unit.pos, other.pos, state.stones):
+                best = other
+                best_dist = d
+    return best
 
 
 def _nearest_enemy_in_vision(unit: Unit, state: GameState) -> Optional[Unit]:

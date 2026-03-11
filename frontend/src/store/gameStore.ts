@@ -10,6 +10,7 @@ export interface TribeStats {
   units: { worker: number; attacker: number; defender: number; queen: number }
   maxUnits: { worker: number; attacker: number; defender: number; queen: number }
   alive: boolean
+  palace_bricks: number
 }
 
 export interface GameEvent {
@@ -43,7 +44,7 @@ interface GameStore {
   setPendingStart: (v: boolean) => void
   setEnergySources: (total: number, exploited: number) => void
   setTribes: (tribes: Array<{ id: number; name: string; color: string }>, startedAt?: number) => void
-  updateStats: (stats: Array<{ id: number; energy: number; units: Record<string, number>; alive: boolean }>) => void
+  updateStats: (stats: Array<{ id: number; energy: number; units: Record<string, number>; alive: boolean; palace_bricks?: number }>) => void
   addEvent: (event: Omit<GameEvent, 'id' | 'timestamp'>) => void
   setEventLog: (events: Array<{ type: string; tribe_id: number; msg: string; tick?: number }>) => void
   setWinner: (winner: { id: number; name: string }) => void
@@ -101,6 +102,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         units: { worker: 0, attacker: 0, defender: 0, queen: 0 },
         maxUnits: { worker: 0, attacker: 0, defender: 0, queen: 0 },
         alive: true,
+        palace_bricks: 0,
       })),
     })
   },
@@ -127,6 +129,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
             queen: Math.max(t.maxUnits.queen, newUnits.queen),
           },
           alive: s.alive,
+          palace_bricks: s.palace_bricks ?? t.palace_bricks,
         }
       }),
     })),

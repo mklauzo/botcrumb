@@ -66,7 +66,7 @@ class GameEngine:
             tribe.energy = spawn_cost
             for _ in range(20):
                 self._spawn_unit(tribe, "worker")
-            for _ in range(3):
+            for _ in range(5):
                 self._spawn_unit(tribe, "attacker")
             for _ in range(1):
                 self._spawn_unit(tribe, "defender")
@@ -179,8 +179,9 @@ class GameEngine:
                 continue
             decision = queen_ai_decision(tribe, self.state, self.rng)
             if decision == "palace":
-                tribe.energy -= 1
-                tribe.palace_bricks += 1
+                bricks = max(1, tribe.energy // 3)
+                tribe.energy -= bricks
+                tribe.palace_bricks += bricks
             elif decision:
                 new_unit = self._spawn_unit(tribe, decision)
                 if new_unit:
@@ -206,15 +207,18 @@ class GameEngine:
                 continue
             speed = UNIT_STATS[unit.unit_type]["speed"]
 
-            # Workers within queen's vision radius move 5x faster
-            if unit.unit_type == "worker":
+            # Units within queen's vision radius get a speed boost
+            if unit.unit_type in ("worker", "defender"):
                 tribe = self.state.tribes.get(unit.tribe_id)
                 queen = self.state.units.get(tribe.queen_id) if tribe and tribe.queen_id else None
                 if queen and tribe:
                     queen_vision = (UNIT_STATS["queen"]["vision"]
                                     + math.isqrt(tribe.palace_bricks) * PALACE_VISION_PER_FLOOR)
                     if great_circle_dist(unit.pos, queen.pos) <= queen_vision:
-                        speed *= 5.0
+                        if unit.unit_type == "worker":
+                            speed *= 5.0
+                        elif unit.unit_type == "defender":
+                            speed = 8.0
 
             target = unit.target_pos
             if target is not None:
@@ -261,9 +265,9 @@ class GameEngine:
                     tribe_name = self.state.tribes[target_unit.tribe_id].name
                     attacker_tribe_obj = self.state.tribes[attacker.tribe_id]
                     attacker_tribe = attacker_tribe_obj.name
-                    # Attacker kills enemy worker → queen gets 5 energy bonus
+                    # Attacker kills enemy worker → queen gets 10 energy bonus
                     if attacker.unit_type == "attacker" and target_unit.unit_type == "worker":
-                        attacker_tribe_obj.energy += 5
+                        attacker_tribe_obj.energy += 10
                     self.state.events.append({
                         "type": "unit_killed",
                         "tribe_id": attacker.tribe_id,

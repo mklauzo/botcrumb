@@ -61,7 +61,7 @@ export default function StatsTable() {
                     ? `Szczyt jednostek:\nWorkers: ${t.maxUnits.worker}\nAttackers: ${t.maxUnits.attacker}\nDefenders: ${t.maxUnits.defender}\nQueens: ${t.maxUnits.queen}`
                     : undefined}
                 >
-                  {t.alive ? '' : '✗ '}{t.name}
+                  {t.alive ? '' : '✗ '}{t.name}{t.palace_bricks > 0 && <span title={`Pałac: ${t.palace_bricks} cegieł`} className="ml-1 text-amber-400">⬡</span>}
                 </td>
                 <td className="text-right px-1 text-yellow-400">{t.energy}</td>
                 <td className="text-right px-1 text-blue-400">{t.units.worker}</td>
