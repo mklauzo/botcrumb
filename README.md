@@ -53,3 +53,4 @@ Szczegółowa instrukcja: [quick_start.md](quick_start.md)
 - **Komunikacja** — WebSocket (diff co 200ms)
 - **Proxy** — nginx
 <img width="1625" height="861" alt="botcru" src="https://github.com/user-attachments/assets/58da5209-2435-4774-8cc1-7352f6222a6a" />
+<img width="1919" height="1031" alt="image" src="https://github.com/user-attachments/assets/056b37f6-9868-423e-b2cc-69e3c71d72ca" />
